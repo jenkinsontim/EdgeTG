@@ -1,0 +1,14 @@
+# Build artifacts
+*.exe
+__pycache__/
+*.pyc
+
+# Runtime wire/reply artifacts produced by the smoke test
+wire_payload.bin
+wire_packet.bin
+wire_values.bin
+wire_reply.bin
+wire_reply_packet.bin
+wire_reply_values.bin
+reply_packet.bin
+reply_values.bin

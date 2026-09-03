@@ -14,7 +14,7 @@ PACKED  = ts_packed.c
 .PHONY: all test clean
 
 all: test_layers test_extended test_priority1 test_priority23 device_bench test_integration \
-     test_packed test_dual_wire_format mcu_executor mcu_firmware test_evolution_experiment
+     test_packed test_dual_wire_format mcu_executor test_evolution_experiment
 
 test_layers: $(CORE) $(LAYERS) test_layers.c
 	$(CC) $(CFLAGS) $^ -o $@
@@ -40,10 +40,7 @@ test_packed: $(CORE) $(EXT) $(PACKED) test_packed.c
 test_dual_wire_format: $(CORE) $(PACKED) test_dual_wire_format.c
 	$(CC) $(CFLAGS) $^ -o $@
 
-mcu_executor: $(CORE) $(LAYERS) mcu_executor.c
-	$(CC) $(CFLAGS) $^ -o $@
-
-mcu_firmware: $(CORE) $(PACKED) mcu_firmware.c
+mcu_executor: $(CORE) $(LAYERS) $(PACKED) mcu_executor.c
 	$(CC) $(CFLAGS) $^ -o $@
 
 test_evolution_experiment: $(CORE) $(EXT) $(LAYERS) $(PRIOR1) $(PRIOR23) $(DEVICE) test_evolution_experiment.c
@@ -62,6 +59,6 @@ test: all
 
 clean:
 	rm -f test_layers test_extended test_priority1 test_priority23 device_bench test_integration \
-	      test_packed test_dual_wire_format mcu_executor mcu_firmware \
-	      wire_payload.bin wire_reply.bin wire_packet.bin wire_values.bin \
-	      wire_reply_packet.bin wire_reply_values.bin
+	      test_packed test_dual_wire_format mcu_executor test_evolution_experiment \
+	      wire_packet.bin wire_values.bin reply_packet.bin reply_values.bin \
+	      wire_payload.bin wire_reply.bin wire_reply_packet.bin wire_reply_values.bin
