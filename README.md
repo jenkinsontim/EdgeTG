@@ -1,4 +1,4 @@
-﻿# EdgeTG (v1.2)
+﻿# EdgeTG (v1.4)
 
 Canonical ordered trees as genomes for edge intelligence. **Exactly three glyphs:** `_` `/` `\`
 
@@ -12,11 +12,18 @@ Canonical ordered trees as genomes for edge intelligence. **Exactly three glyphs
 - **MCU Executor & Version-Locking Safety Net**: Manifest version validation (`EXPECTED_MANIFEST_VERSION`) rejecting invalid payloads before processing.
 - **Multi-Language Gateway Loop**: Cross-language authoring in Lua (`gateway.lua`), C3 (`gateway.c3`), and Zig (`gateway.zig`), positional execution in C (`mcu_executor.c`), and response decoding in Python (`gateway.py`).
 
+## What's New in v1.4
+
+- **2-bit packed wire format for LoRa optimization**: `ts_packed.c` stores 4 topology glyphs per byte (`_`=0, `/`=1, `\`=2), giving a **3.75× payload reduction** for typical configs.
+- **Dual-format dispatcher**: the MCU auto-detects ASCII vs packed via byte 0 of the wire packet; an unknown format byte is rejected, never guessed.
+- **Unified gateway** with a `USE_PACKED` toggle: one `gateway.lua` authors the topology in either mode.
+- **Split wire files**: `wire_packet.bin` (topology) + `wire_values.bin` (values) — two artifacts that respect the "external meaning" invariant by keeping topology and values separate.
+
 ## What's New in v1.3/v1.4 Packed Wire Mode
 
 - **2-bit packed wire transport** (`ts_packed.h/.c`): stores 4 topology glyphs per byte (`_`=0, `/`=1, `\`=2; code 3 is invalid and rejected on unpack).
-- **Dual wire dispatcher** (`test_dual_wire_format.c`, `mcu_firmware.c`): the same downstream topology is reached from either an ASCII-mode or a packed-mode packet. Unknown format bytes are rejected, never guessed.
-- **Packed bidirectional demo** (`gateway_encode.lua` → `mcu_firmware.c` → `gateway_decode.py`): request and reply are both genuinely 2-bit packed; the firmware applies the `25.3 -> 25.7` calibration offset to prove real processing.
+- **Dual wire dispatcher** (`mcu_executor.c`): the same downstream topology is reached from either an ASCII-mode or a packed-mode packet. Unknown format bytes are rejected, never guessed.
+- **Packed bidirectional unification** (`gateway.lua` → `mcu_executor.c` → `gateway.py`): request and reply are both 2-bit packed when the `USE_PACKED` toggle is on; the MCU applies the `25.3 -> 25.7` calibration offset to prove real processing.
 
 ---
 
@@ -28,21 +35,45 @@ make test
 
 This builds and runs every verification suite under AddressSanitizer, UndefinedBehaviorSanitizer, and LeakSanitizer with `-Werror`.
 
+Then run the unified wire smoke test:
+
+```bash
+lua gateway.lua
+./mcu_executor wire_packet.bin wire_values.bin
+python gateway.py
+```
+
+## Wire Format Modes
+
+EdgeTG supports two wire format modes, auto-detected by the MCU:
+
+### ASCII Mode (format byte 0x00)
+- Human readable, easy to debug
+- 8 bits per symbol
+- Suitable for development and documentation
+
+### Packed Mode (format byte 0x01)
+- 2-bit packed (4 symbols per byte)
+- ~3.75× smaller for typical configs
+- Suitable for LoRa/RF transmission
+
+Both modes produce identical topology strings and identical execution results.
+
 ---
 
 ## Multi-Language Gateway Demos
 
-EdgeTG supports authoring configurations in any preferred language. All produce the exact same wire format and the same `25.3 -> 25.7` calibration drift when executed by the C MCU.
+EdgeTG supports authoring configurations in any preferred language. All produce the exact same two-file wire format and the same `25.3 -> 25.7` calibration drift when executed by the C MCU.
 
 ### Build MCU Executor
 ```bash
-gcc -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 ts_core.c ts_layers.c mcu_executor.c -o mcu_executor
+gcc -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 ts_core.c ts_layers.c ts_packed.c mcu_executor.c -o mcu_executor
 ```
 
 ### 1. Lua (Scripting)
 ```bash
 lua gateway.lua
-./mcu_executor wire_payload.bin
+./mcu_executor wire_packet.bin wire_values.bin
 python gateway.py
 ```
 
@@ -50,7 +81,7 @@ python gateway.py
 ```bash
 c3c compile gateway.c3 -o gateway_c3
 ./gateway_c3
-./mcu_executor wire_payload.bin
+./mcu_executor wire_packet.bin wire_values.bin
 python gateway.py
 ```
 
@@ -58,7 +89,7 @@ python gateway.py
 ```bash
 zig build-exe gateway.zig -O ReleaseFast
 ./gateway
-./mcu_executor wire_payload.bin
+./mcu_executor wire_packet.bin wire_values.bin
 python gateway.py
 ```
 
@@ -89,7 +120,7 @@ python gateway.py
 
 ## Wire & Value Formats
 
-EdgeTG has two wire modes for the topology and two value-payload schemes. They are independent and intentionally separate.
+EdgeTG has two wire modes for the topology and one value-payload scheme. They are independent and intentionally separate.
 
 ### 1. ASCII topology wire mode
 Topology glyphs are sent as raw ASCII bytes (`_`, `/`, `\`).
@@ -100,17 +131,14 @@ Topology glyphs are sent as raw ASCII bytes (`_`, `/`, `\`).
 `ts_packed.c` stores **4 topology symbols per byte**, 2 bits each (`_`=0, `/`=1, `\`=2). Code `3` is invalid and rejected on unpack. Packed payload length is `(symbol_count + 3) / 4` bytes.
 - Packet envelope: `[wire_format = 0x01][symbol_count u8][packed topology bytes]`
 - This is a **transport optimization only**: unpacking always yields exactly the same topology string as ASCII mode, which then feeds the same `ts_parse`/`ts_parse_n`.
-- Savings approach ~4x for larger topology strings, but are smaller for tiny packets because of the fixed envelope overhead. Typical demo packets carry a handful of symbols and save only ~1.5x.
+- Savings approach ~4x for larger topology strings, but are smaller for tiny packets because of the fixed envelope overhead. Typical demo packets carry a handful of symbols and save ~1.5x.
 
 The dispatcher rejects any unknown `wire_format` byte rather than guessing.
 
-### 3. Older length-prefixed value blob (`ts_values_encode`)
+### 3. Length-prefixed value blob (`ts_values_encode`)
 `ts_values_encode`/`ts_values_decode` serialize the preorder-indexed value array as:
 `[u32 little-endian count]` then `count × [u32 little-endian length][value bytes]`.
-This is the binary side-artifact paired with the ASCII topology path. `gateway.lua`, `mcu_executor.c`, and `gateway.py` all agree on this format.
-
-### 4. Newer compact demo value payload
-`gateway_encode.lua`, `mcu_firmware.c`, and `gateway_decode.py` use a small **manifest-typed** payload: one `u8` bool followed by one `f32` float (5 bytes). This is **demo-specific** and separate from `ts_values_encode`; it is tied directly to the v2 manifest (`valve` = bool, `temp` = float). The firmware reads these positionally, applies `temp += 0.4`, and re-serializes the same 5-byte shape in its packed reply.
+This is the binary side-artifact paired with the topology path. `gateway.lua`, `mcu_executor.c`, and `gateway.py` all agree on this format, so the reply round-trips cleanly in whichever wire mode was requested.
 
 > Verification note: ASan/UBSan/LSan require `libasan`/`libubsan` from the compiler runtime. Some Windows MinGW toolchains ship compilers that support the sanitizer flags but omit those runtime libraries, in which case local sanitized runs cannot link. The suites still pass under `-Werror`; sanitized execution is intended on a toolchain that provides the sanitizer runtime.
 
