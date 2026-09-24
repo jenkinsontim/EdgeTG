@@ -6,6 +6,7 @@
 #include "ts_roles.h"
 #include "ts_norm.h"
 #include "ts_enum.h"
+#include "ts_packed.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -167,6 +168,24 @@ static void test_count_trees_overflow(void) {
     CHECK(ts_count_trees(40) == 0, "n=40 overflows -> 0");
 }
 
+/* ts_unpack: padding bits after the last symbol must be zero, so each
+ * topology has exactly one packed encoding (ts_pack always zeroes them). */
+static void test_unpack_padding(void) {
+    printf("6. ts_unpack rejects non-zero padding bits\n");
+    char out[8];
+    const uint8_t clean[2] = { 0x04, 0x02 };        /* _/__\ (5 symbols) */
+    CHECK(ts_unpack(clean, 5, out) == 1 && strcmp(out, "_/__\\") == 0,
+          "clean packet unpacks");
+    for (int bit = 2; bit < 8; bit++) {             /* symbols 5..7 live in bits 2..7 */
+        uint8_t dirty[2] = { 0x04, (uint8_t)(0x02 | (1u << bit)) };
+        char msg[48];
+        snprintf(msg, sizeof msg, "padding bit %d set rejected", bit);
+        CHECK(ts_unpack(dirty, 5, out) == 0, msg);
+    }
+    const uint8_t full[1] = { 0x94 };               /* 4 symbols: _ / / \ -> no padding */
+    CHECK(ts_unpack(full, 4, out) == 1, "exact multiple of 4 has no padding");
+}
+
 int main(void) {
     printf("EdgeTG — REGRESSION TESTS\n\n");
     test_values_decode_untrusted();
@@ -174,6 +193,7 @@ int main(void) {
     test_encode_forest_null();
     test_forest_normalize_paired_binding();
     test_count_trees_overflow();
+    test_unpack_padding();
     printf("\nRESULT: %d/%d regression assertions passed.\n", g_pass, g_pass + g_fail);
     return g_fail ? 1 : 0;
 }

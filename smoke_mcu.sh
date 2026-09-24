@@ -30,6 +30,7 @@ printf '\000_/__\\'        > p.bin; check "ascii packet accepted"            0 p
 printf '\001\005\004\002'  > p.bin; check "packed packet accepted"           0 p.bin v3.bin
 printf '\007_'             > p.bin; check "unknown format byte rejected"     2 p.bin v3.bin
 printf '\001\005\004\003'  > p.bin; check "packed code 3 rejected"           2 p.bin v3.bin
+printf '\001\005\004\102'  > p.bin; check "packed dirty padding rejected"    2 p.bin v3.bin
 printf '\001\005\004'      > p.bin; check "packed length mismatch rejected"  2 p.bin v3.bin
 printf '\000_/_'           > p.bin; check "malformed topology rejected"      3 p.bin v3.bin
 printf '\000_\000/__\\'    > p.bin; check "embedded NUL in ascii rejected"   2 p.bin v3.bin

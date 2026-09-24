@@ -54,7 +54,7 @@ ewma_boundary: $(LEAF) ewma_boundary_test.c
 test_ewma_leaf: $(CORE) $(EXT) $(LAYERS) $(PRIOR23) $(LEAF) test_ewma_leaf.c
 	$(CC) $(CFLAGS) $^ -o $@
 
-test_regressions: $(CORE) $(LAYERS) ts_roles.c ts_norm.c ts_enum.c test_regressions.c
+test_regressions: $(CORE) $(LAYERS) ts_roles.c ts_norm.c ts_enum.c ts_packed.c test_regressions.c
 	$(CC) $(CFLAGS) $^ -o $@
 
 test: all
