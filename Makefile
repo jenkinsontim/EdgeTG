@@ -16,7 +16,7 @@ LEAF    = ewma_leaf.c
 
 all: test_layers test_extended test_priority1 test_priority23 device_bench test_integration \
      test_packed test_dual_wire_format mcu_executor test_evolution_experiment \
-     ewma_boundary test_ewma_leaf
+     ewma_boundary test_ewma_leaf test_regressions
 
 test_layers: $(CORE) $(LAYERS) test_layers.c
 	$(CC) $(CFLAGS) $^ -o $@
@@ -54,6 +54,9 @@ ewma_boundary: $(LEAF) ewma_boundary_test.c
 test_ewma_leaf: $(CORE) $(EXT) $(LAYERS) $(PRIOR23) $(LEAF) test_ewma_leaf.c
 	$(CC) $(CFLAGS) $^ -o $@
 
+test_regressions: $(CORE) $(LAYERS) test_regressions.c
+	$(CC) $(CFLAGS) $^ -o $@
+
 test: all
 	@echo "=== test_layers ==="     && $(ASAN) ./test_layers
 	@echo "=== test_extended ==="   && $(ASAN) ./test_extended
@@ -65,6 +68,7 @@ test: all
 	@echo "=== test_dual_wire_format ===" && $(ASAN) ./test_dual_wire_format
 	@echo "=== ewma_boundary ==="   && $(ASAN) ./ewma_boundary
 	@echo "=== test_ewma_leaf ==="  && $(ASAN) ./test_ewma_leaf
+	@echo "=== test_regressions ===" && $(ASAN) ./test_regressions
 	@echo "=== test_evolution_experiment ===" && $(ASAN) ./test_evolution_experiment
 	@echo "=== mcu_executor smoke ===" && python3 smoke_ewma_executor.py && $(ASAN) ./mcu_executor wire_packet.bin wire_values.bin
 	@echo "ALL SUITES PASSED"
@@ -72,6 +76,6 @@ test: all
 clean:
 	rm -f test_layers test_extended test_priority1 test_priority23 device_bench test_integration \
 	      test_packed test_dual_wire_format mcu_executor test_evolution_experiment \
-	      ewma_boundary test_ewma_leaf \
+	      ewma_boundary test_ewma_leaf test_regressions \
 	      wire_packet.bin wire_values.bin reply_packet.bin reply_values.bin \
 	      wire_payload.bin wire_reply.bin wire_reply_packet.bin wire_reply_values.bin
