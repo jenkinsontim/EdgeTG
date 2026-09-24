@@ -1,4 +1,4 @@
-﻿# EdgeTG Project
+# EdgeTG Project
 
 **Version 1.1**
 
@@ -15,16 +15,16 @@ proven to preserve canonicity and to fail explicitly on illegal states.
 
 Alphabet: `_` `/` `\`
 
-- `_` â€” a node
-- `/` â€¦ `\` â€” an ordered, non-empty list of child trees
+- `_` — a node
+- `/` … `\` — an ordered, non-empty list of child trees
 
 Empty child lists (`_/\`) are illegal. The only legal encodings are those
-produced by the canonical encoder; parse â†’ encode is an identity.
+produced by the canonical encoder; parse → encode is an identity.
 
 ## 3. Invariants (non-negotiable)
 
 1. Exactly three glyphs. No new symbols, ever.
-2. Strict canonicity: one ordered tree â†” one string.
+2. Strict canonicity: one ordered tree ↔ one string.
 3. Meaning stays external (values, roles, scores, IDs).
 4. Identity is positional (preorder index).
 5. Empty child lists remain illegal.
@@ -44,13 +44,14 @@ produced by the canonical encoder; parse â†’ encode is an identity.
 | **Boltzmann** | `ts_boltzmann.h/.c` | Parameterized random tree generation |
 | **Enum** | `ts_enum.h/.c` | Catalan counts + plane-tree unranking / enumeration |
 | **Metric** | `ts_metric.h/.c` | Tree edit distance + canonical-string Levenshtein |
+| **Leaf** | `ewma_leaf.h/.c` | EWMA prototype classifier for adaptive leaf nodes |
 | **Device** | `device.h/.c` | Firmwares A/B/C + dedup persistence store |
 
 ## 5. Device firmwares
 
-- **A â€” Ordered pipeline**: prefers deep narrow trees (depth â‰¥ 2, width â‰¤ 3).
-- **B â€” Task tree**: width vs latency; legal when nodes â‰¤ 20 and depth â‰¤ 8.
-- **C â€” Modular robot**: power = 1.5Â·nodes + 2Â·width; legal when power â‰¤ 40.
+- **A — Ordered pipeline**: prefers deep narrow trees (depth ≥ 2, width ≤ 3).
+- **B — Task tree**: width vs latency; legal when nodes ≤ 20 and depth ≤ 8.
+- **C — Modular robot**: power = 1.5·nodes + 2·width; legal when power ≤ 40.
 
 ## 6. Build
 
@@ -66,7 +67,7 @@ Individual suites:
 gcc -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 \
     -fsanitize=address,undefined -g \
     ts_core.c ts_layers.c test_layers.c -o test_layers
-# â€¦ same pattern for test_extended, test_priority1, test_priority23,
+# … same pattern for test_extended, test_priority1, test_priority23,
 #    device_bench, test_integration
 ```
 
@@ -78,8 +79,9 @@ gcc -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 \
 | `test_extended` | 2343 | RNG, mutations, 500-run fuzz |
 | `test_priority1` | 1334 | Intern, forest-norm, depth-norm + fuzz |
 | `test_priority23` | 861 | Roles, Boltzmann, enum, metrics + fuzz |
-| `test_integration` | (cross-module) | Evolve â†’ values â†’ norm â†’ schema â†’ roles â†’ intern â†’ firmwares |
-| **Total** | **â‰ˆ 6069+** | All under ASan/UBSan/LeakSanitizer, `-Werror` |
+| `test_integration` | (cross-module) | Evolve → values → norm → schema → roles → intern → firmwares |
+| `test_ewma_leaf` | 68 | EWMA leaf init, convergence, reversal, multi-leaf, role-map, clamping |
+| **Total** | **≈ 6069+** | All under ASan/UBSan/LeakSanitizer, `-Werror` |
 
 ## 8. Repository layout
 
@@ -100,6 +102,10 @@ test_extended.c
 test_priority1.c
 test_priority23.c
 test_integration.c
+ewma_leaf.h / ewma_leaf.c
+ewma_boundary_test.c
+synthetic_leaf_battle.py
+test_ewma_leaf.c
 Makefile
 TOPOLOGY_GENOME_PROJECT.md
 README.md
@@ -108,7 +114,7 @@ README.md
 ## 9. Design notes
 
 - Shrink clones before cascade and aborts with `TS_EXT_ERR_EMPTY_ROOT` if the
-  root would empty â€” the original tree is never corrupted.
+  root would empty — the original tree is never corrupted.
 - Interning is an internal optimization; the wire format remains pure `_/\`.
 - Roles and values are separate binary artifacts, never embedded in the string.
 - Plane-tree unranking uses the standard first-child + rest Catalan decomposition.

@@ -1,4 +1,4 @@
-ï»¿# EdgeTG (v1.4)
+# EdgeTG (v1.4)
 
 Canonical ordered trees as genomes for edge intelligence. **Exactly three glyphs:** `_` `/` `\`
 
@@ -12,18 +12,26 @@ Canonical ordered trees as genomes for edge intelligence. **Exactly three glyphs
 - **MCU Executor & Version-Locking Safety Net**: Manifest version validation (`EXPECTED_MANIFEST_VERSION`) rejecting invalid payloads before processing.
 - **Multi-Language Gateway Loop**: Cross-language authoring in Lua (`gateway.lua`), C3 (`gateway.c3`), and Zig (`gateway.zig`), positional execution in C (`mcu_executor.c`), and response decoding in Python (`gateway.py`).
 
+
+## What's New in v1.5
+
+- **EWMA Adaptive Leaf** (`ewma_leaf.h/.c`): recommended default leaf classifier for EdgeTG tree nodes. Pure integer, Cortex-M0+ friendly, 30-byte struct. Outperforms Nearest Centroid, Winnow, Naive Bayes, and Minimal Tsetlin on stationary, gradual-drift, and abrupt concept-reversal scenarios.
+- **Leaf-tree integration** (`test_ewma_leaf.c`): 68-assertion suite wiring EWMA leaves to tree leaf nodes via preorder index and `TSRoleMap` role tags.
+- **`ewma_boundary_test.c`**: standalone signed-arithmetic and extreme-value verification.
+- **`synthetic_leaf_battle.py`**: controlled head-to-head benchmark -- 6 classifiers x 3 drift scenarios x 8 seeds.
+- **`docs/ewma-leaf.md`**: full API reference, benchmark tables, and integration guidance.
 ## What's New in v1.4
 
-- **2-bit packed wire format for LoRa optimization**: `ts_packed.c` stores 4 topology glyphs per byte (`_`=0, `/`=1, `\`=2), giving a **3.75Ã— payload reduction** for typical configs.
+- **2-bit packed wire format for LoRa optimization**: `ts_packed.c` stores 4 topology glyphs per byte (`_`=0, `/`=1, `\`=2), giving a **3.75× payload reduction** for typical configs.
 - **Dual-format dispatcher**: the MCU auto-detects ASCII vs packed via byte 0 of the wire packet; an unknown format byte is rejected, never guessed.
 - **Unified gateway** with a `USE_PACKED` toggle: one `gateway.lua` authors the topology in either mode.
-- **Split wire files**: `wire_packet.bin` (topology) + `wire_values.bin` (values) â€” two artifacts that respect the "external meaning" invariant by keeping topology and values separate.
+- **Split wire files**: `wire_packet.bin` (topology) + `wire_values.bin` (values) — two artifacts that respect the "external meaning" invariant by keeping topology and values separate.
 
 ## What's New in v1.3/v1.4 Packed Wire Mode
 
 - **2-bit packed wire transport** (`ts_packed.h/.c`): stores 4 topology glyphs per byte (`_`=0, `/`=1, `\`=2; code 3 is invalid and rejected on unpack).
 - **Dual wire dispatcher** (`mcu_executor.c`): the same downstream topology is reached from either an ASCII-mode or a packed-mode packet. Unknown format bytes are rejected, never guessed.
-- **Packed bidirectional unification** (`gateway.lua` â†’ `mcu_executor.c` â†’ `gateway.py`): request and reply are both 2-bit packed when the `USE_PACKED` toggle is on; the MCU applies the `25.3 -> 25.7` calibration offset to prove real processing.
+- **Packed bidirectional unification** (`gateway.lua` ? `mcu_executor.c` ? `gateway.py`): request and reply are both 2-bit packed when the `USE_PACKED` toggle is on; the MCU applies the `25.3 -> 25.7` calibration offset to prove real processing.
 
 ---
 
@@ -54,7 +62,7 @@ EdgeTG supports two wire format modes, auto-detected by the MCU:
 
 ### Packed Mode (format byte 0x01)
 - 2-bit packed (4 symbols per byte)
-- ~3.75Ã— smaller for typical configs
+- ~3.75× smaller for typical configs
 - Suitable for LoRa/RF transmission
 
 Both modes produce identical topology strings and identical execution results.
@@ -110,7 +118,7 @@ python gateway.py
 ## Core Invariants
 
 1. **Three glyphs only**: No names, values, or labels in the string (`_`, `/`, `\`).
-2. **Strict canonicity**: `encode âˆ˜ parse = id`.
+2. **Strict canonicity**: `encode ° parse = id`.
 3. **Meaning is external**: Positional indices bind topology to data/schemas.
 4. **Empty child lists illegal**: `_/\` is rejected.
 5. **Tree-based mutations**: Mutations operate strictly on tree structures, never raw string manipulation.
@@ -137,7 +145,7 @@ The dispatcher rejects any unknown `wire_format` byte rather than guessing.
 
 ### 3. Length-prefixed value blob (`ts_values_encode`)
 `ts_values_encode`/`ts_values_decode` serialize the preorder-indexed value array as:
-`[u32 little-endian count]` then `count Ã— [u32 little-endian length][value bytes]`.
+`[u32 little-endian count]` then `count × [u32 little-endian length][value bytes]`.
 This is the binary side-artifact paired with the topology path. `gateway.lua`, `mcu_executor.c`, and `gateway.py` all agree on this format, so the reply round-trips cleanly in whichever wire mode was requested.
 
 > Verification note: ASan/UBSan/LSan require `libasan`/`libubsan` from the compiler runtime. Some Windows MinGW toolchains ship compilers that support the sanitizer flags but omit those runtime libraries, in which case local sanitized runs cannot link. The suites still pass under `-Werror`; sanitized execution is intended on a toolchain that provides the sanitizer runtime.
