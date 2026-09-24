@@ -105,10 +105,23 @@ static void test_roles_decode_untrusted(void) {
     ts_roles_free(&m);
 }
 
+/* ts_encode_forest: a NULL forest with a non-zero count must be rejected
+ * (ts_encode already rejects a NULL tree); count 0 stays valid. */
+static void test_encode_forest_null(void) {
+    printf("3. ts_encode_forest argument validation\n");
+    char *s = NULL; size_t len = 99;
+    CHECK(ts_encode_forest(NULL, 3, &s, &len) == TS_ERR_INVALID_ARG && s == NULL,
+          "NULL forest with count 3 rejected");
+    CHECK(ts_encode_forest(NULL, 0, &s, &len) == TS_OK && s && s[0] == '\0' && len == 0,
+          "empty forest encodes to empty string");
+    free(s);
+}
+
 int main(void) {
     printf("EdgeTG — REGRESSION TESTS\n\n");
     test_values_decode_untrusted();
     test_roles_decode_untrusted();
+    test_encode_forest_null();
     printf("\nRESULT: %d/%d regression assertions passed.\n", g_pass, g_pass + g_fail);
     return g_fail ? 1 : 0;
 }
