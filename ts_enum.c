@@ -11,6 +11,7 @@ static uint64_t *catalan_up_to(size_t k) {
         for (size_t i = 0; i < n; i++) {
             uint64_t a = C[i], b = C[n - 1 - i];
             if (a && b > UINT64_MAX / a) { free(C); return NULL; }
+            if (C[n] > UINT64_MAX - a * b) { free(C); return NULL; } /* sum overflow */
             C[n] += a * b;
         }
     }

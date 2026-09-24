@@ -5,6 +5,7 @@
 #include "ts_layers.h"
 #include "ts_roles.h"
 #include "ts_norm.h"
+#include "ts_enum.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -154,12 +155,25 @@ static void test_forest_normalize_paired_binding(void) {
     ts_free_tree(&forest[0]); ts_free_tree(&forest[1]);
 }
 
+/* ts_count_trees: C_{n-1} stops fitting in uint64_t at n = 38. The DP
+ * checked each product for overflow but not the running sum, so n = 38/39
+ * returned the count mod 2^64. Unrepresentable counts must return 0. */
+static void test_count_trees_overflow(void) {
+    printf("5. ts_count_trees reports overflow instead of wrapping\n");
+    CHECK(ts_count_trees(36) == 3116285494907301262ull, "n=36 exact");
+    CHECK(ts_count_trees(37) == 11959798385860453492ull, "n=37 exact (largest that fits)");
+    CHECK(ts_count_trees(38) == 0, "n=38 overflows -> 0");
+    CHECK(ts_count_trees(39) == 0, "n=39 overflows -> 0");
+    CHECK(ts_count_trees(40) == 0, "n=40 overflows -> 0");
+}
+
 int main(void) {
     printf("EdgeTG — REGRESSION TESTS\n\n");
     test_values_decode_untrusted();
     test_roles_decode_untrusted();
     test_encode_forest_null();
     test_forest_normalize_paired_binding();
+    test_count_trees_overflow();
     printf("\nRESULT: %d/%d regression assertions passed.\n", g_pass, g_pass + g_fail);
     return g_fail ? 1 : 0;
 }
