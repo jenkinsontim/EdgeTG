@@ -29,3 +29,6 @@ test_evolution_experiment
 ewma_boundary
 mcu_executor
 device_bench
+test_priority1
+test_integration
+test_regressions
