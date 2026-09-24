@@ -75,7 +75,8 @@ EdgeTG supports authoring configurations in any preferred language. All produce 
 
 ### Build MCU Executor
 ```bash
-gcc -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 ts_core.c ts_layers.c ts_packed.c mcu_executor.c -o mcu_executor
+gcc -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 ts_core.c ts_layers.c ts_packed.c ewma_leaf.c mcu_executor.c -o mcu_executor
+# or simply: make mcu_executor
 ```
 
 ### 1. Lua (Scripting)
