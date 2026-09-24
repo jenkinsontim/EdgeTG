@@ -65,6 +65,8 @@ test: all
 	@echo "=== test_dual_wire_format ===" && $(ASAN) ./test_dual_wire_format
 	@echo "=== ewma_boundary ==="   && $(ASAN) ./ewma_boundary
 	@echo "=== test_ewma_leaf ==="  && $(ASAN) ./test_ewma_leaf
+	@echo "=== test_evolution_experiment ===" && $(ASAN) ./test_evolution_experiment
+	@echo "=== mcu_executor smoke ===" && python3 smoke_ewma_executor.py && $(ASAN) ./mcu_executor wire_packet.bin wire_values.bin
 	@echo "ALL SUITES PASSED"
 
 clean:
