@@ -166,7 +166,7 @@ static int test_error_rate(void)
         ewma_leaf_update(&leaf, ones, 1);
     }
     uint8_t rate = ewma_leaf_error_rate(&leaf);
-    CHECK(rate <= 255, "error rate is valid uint8");
+    CHECK(leaf.recent_total > 0, "error counter was exercised (total > 0)");
     /* After convergence, error rate should drop */
     for (int i = 0; i < 200; i++) {
         ewma_leaf_update(&leaf, zeros, 0);
@@ -396,6 +396,12 @@ static int test_role_serialisation(void)
 
     free(buf);
     ts_roles_free(&rmap);
+    /* ts_roles_decode heap-allocates each metadata buffer; ts_roles_free is
+     * intentionally shallow (matching ts_roles_create semantics for the create
+     * path where the caller owns the buffers).  Free decode-owned metadata
+     * explicitly here to satisfy ASan/LSan. */
+    for (size_t i = 0; i < rmap2.count; i++)
+        free((void *)rmap2.roles[i].metadata.data);
     ts_roles_free(&rmap2);
     return 0;
 }

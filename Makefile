@@ -42,7 +42,7 @@ test_packed: $(CORE) $(EXT) $(PACKED) test_packed.c
 test_dual_wire_format: $(CORE) $(PACKED) test_dual_wire_format.c
 	$(CC) $(CFLAGS) $^ -o $@
 
-mcu_executor: $(CORE) $(LAYERS) $(PACKED) mcu_executor.c
+mcu_executor: $(CORE) $(LAYERS) $(PACKED) $(LEAF) mcu_executor.c
 	$(CC) $(CFLAGS) $^ -o $@
 
 test_evolution_experiment: $(CORE) $(EXT) $(LAYERS) $(PRIOR1) $(PRIOR23) $(DEVICE) test_evolution_experiment.c
@@ -51,7 +51,7 @@ test_evolution_experiment: $(CORE) $(EXT) $(LAYERS) $(PRIOR1) $(PRIOR23) $(DEVIC
 ewma_boundary: $(LEAF) ewma_boundary_test.c
 	$(CC) $(CFLAGS) $^ -o $@
 
-test_ewma_leaf: $(CORE) $(LAYERS) $(PRIOR23) $(LEAF) test_ewma_leaf.c
+test_ewma_leaf: $(CORE) $(EXT) $(LAYERS) $(PRIOR23) $(LEAF) test_ewma_leaf.c
 	$(CC) $(CFLAGS) $^ -o $@
 
 test: all

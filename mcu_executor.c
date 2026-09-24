@@ -1,4 +1,4 @@
-﻿/* mcu_executor.c -- the single, unified EdgeTG MCU.
+/* mcu_executor.c -- the single, unified EdgeTG MCU.
  * Consumes the two-file wire artifacts that gateway.lua writes and produces
  * two reply artifacts that gateway.py decodes:
  *   argv[1] = wire_packet.bin   (topology, ASCII or 2-bit packed mode)
@@ -7,13 +7,23 @@
  *   reply_packet.bin  (topology, re-encoded in the SAME mode as the request)
  *   reply_values.bin  (the reply value blob, via ts_values_encode)
  *
- * This is the classic battery-powered "muscle" side: it decodes, executes
- * positionally (here a +0.4f calibration drift on the float value), and
- * re-encodes, all without touching the ts_packed grammar module.
+ * Execution model:
+ *   1. Calibration pass  — applies +0.4 f32 offset to every float value
+ *                          (the classic battery-powered "muscle" side).
+ *   2. EWMA leaf pass    — walks the parsed tree; for every leaf node whose
+ *                          positional value blob has length == num_features
+ *                          (uint8_t binary features), runs ewma_leaf_predict()
+ *                          and logs the result.  If a ground-truth label is
+ *                          available (value blob length == num_features + 1,
+ *                          with the last byte being the label), the leaf is
+ *                          also updated via ewma_leaf_update().
+ *                          Leaves are keyed by preorder index; one
+ *                          ewma_leaf_t is kept for each leaf node.
  */
 #include "ts_core.h"
 #include "ts_layers.h"
 #include "ts_packed.h"
+#include "ewma_leaf.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,6 +31,8 @@
 
 #define WIRE_FORMAT_ASCII  0x00
 #define WIRE_FORMAT_PACKED 0x01
+
+/* ------------------------------------------------------------------ helpers */
 
 static float read_float(const uint8_t *b) {
     float f;
@@ -99,6 +111,117 @@ static char *decode_wire_payload(const uint8_t *buf, size_t len,
     return out;
 }
 
+/* ------------------------------------------------------------------ EWMA leaf dispatch
+ *
+ * Walk the tree in preorder.  For each leaf node (child_count == 0):
+ *   - If its positional value (values[preorder_index]) has length >= 1 and
+ *     <= EWMA_MAX_FEATURES, treat those bytes as binary features (0 = off,
+ *     non-zero = on) and call ewma_leaf_predict().
+ *   - If value length == num_features + 1, the extra trailing byte is used
+ *     as the ground-truth label and ewma_leaf_update() is called too.
+ *
+ * ewma_leaves is a parallel array indexed by the leaf's slot in the
+ * leaf-order (not preorder); leaf_map[slot] = preorder index.
+ *
+ * For simplicity the executor allocates one EWMA leaf per leaf node and
+ * keeps them in a flat array.  In a real deployment these would be
+ * persisted across invocations (e.g. in FRAM).
+ */
+
+typedef struct {
+    size_t     preorder_index;
+    ewma_leaf_t clf;
+} EWMALeafSlot;
+
+/* Recursive preorder walk; fills slots[], returns number of leaf nodes. */
+static size_t collect_ewma_leaves(const TSNode *node, size_t *preorder_idx,
+                                  EWMALeafSlot *slots, size_t slot_cap,
+                                  size_t slot_count)
+{
+    size_t my_idx = (*preorder_idx)++;
+    if (node->child_count == 0) {
+        /* Leaf node */
+        if (slot_count < slot_cap) {
+            slots[slot_count].preorder_index = my_idx;
+            /* Initialise with 2 classes, EWMA_MAX_FEATURES features.
+             * In production the configuration would come from a stored
+             * manifest or role-map metadata. */
+            ewma_leaf_init(&slots[slot_count].clf, 2, EWMA_MAX_FEATURES);
+            slot_count++;
+        }
+    }
+    for (size_t c = 0; c < node->child_count; c++)
+        slot_count = collect_ewma_leaves(&node->children[c], preorder_idx,
+                                         slots, slot_cap, slot_count);
+    return slot_count;
+}
+
+static void run_ewma_dispatch(const TSNode *tree,
+                              const TSValue *values, size_t val_count)
+{
+    /* Upper bound: a tree with N nodes has at most N leaves. */
+    size_t node_count = ts_count_nodes(tree);
+    EWMALeafSlot *slots = calloc(node_count, sizeof(EWMALeafSlot));
+    if (!slots) {
+        fprintf(stderr, "MCU: EWMA dispatch: OOM allocating leaf slots.\n");
+        return;
+    }
+
+    size_t preorder_idx = 0;
+    size_t leaf_count = collect_ewma_leaves(tree, &preorder_idx,
+                                             slots, node_count, 0);
+
+    printf("MCU: EWMA dispatch: %zu leaf node(s) found.\n", leaf_count);
+
+    for (size_t s = 0; s < leaf_count; s++) {
+        size_t pos = slots[s].preorder_index;
+        if (pos >= val_count) {
+            printf("MCU:   leaf[%zu] (preorder %zu): no value blob, skipping.\n",
+                   s, pos);
+            continue;
+        }
+
+        const TSValue *v = &values[pos];
+        uint8_t nf = slots[s].clf.num_features;  /* EWMA_MAX_FEATURES */
+
+        /* Determine mode from value length:
+         *   len == nf        → predict only
+         *   len == nf + 1    → predict then update with trailing label byte
+         *   otherwise        → not a feature vector; skip
+         */
+        if (v->len == 0 || v->len > (size_t)(nf + 1)) {
+            printf("MCU:   leaf[%zu] (preorder %zu): value len %zu not a "
+                   "feature vector (expected %u or %u), skipping.\n",
+                   s, pos, v->len, nf, (unsigned)(nf + 1));
+            continue;
+        }
+
+        /* Build a zero-padded feature array of exactly num_features bytes. */
+        uint8_t features[EWMA_MAX_FEATURES] = {0};
+        size_t feat_len = (v->len == (size_t)(nf + 1)) ? (size_t)nf : v->len;
+        for (size_t f = 0; f < feat_len; f++)
+            features[f] = v->data[f] ? 1u : 0u;  /* binarise */
+
+        uint8_t pred = ewma_leaf_predict(&slots[s].clf, features);
+
+        if (v->len == (size_t)(nf + 1)) {
+            /* Ground-truth label is the last byte. */
+            uint8_t label = v->data[nf];
+            ewma_leaf_update(&slots[s].clf, features, label);
+            uint8_t err_rate = ewma_leaf_error_rate(&slots[s].clf);
+            printf("MCU:   leaf[%zu] (preorder %zu): pred=%u label=%u "
+                   "err_rate=%u/255\n", s, pos, pred, label, err_rate);
+        } else {
+            printf("MCU:   leaf[%zu] (preorder %zu): pred=%u (predict-only)\n",
+                   s, pos, pred);
+        }
+    }
+
+    free(slots);
+}
+
+/* ------------------------------------------------------------------ main */
+
 int main(int argc, char **argv) {
     if (argc < 3) {
         fprintf(stderr, "Usage: %s <wire_packet.bin> <wire_values.bin>\n", argv[0]);
@@ -125,7 +248,7 @@ int main(int argc, char **argv) {
     uint8_t incoming_mode = 0;
     topo = decode_wire_payload(wire, wire_len, &incoming_mode);
     if (!topo) { rc = 2; goto done; }
-    printf("MCU: wire packet mode=%s, topology=\"" "%s" "\".\n",
+    printf("MCU: wire packet mode=%s, topology=\"%s\".\n",
            incoming_mode == WIRE_FORMAT_PACKED ? "packed" : "ascii", topo);
 
     if (ts_parse(topo, 16, &tree) != TS_OK) {
@@ -141,16 +264,19 @@ int main(int argc, char **argv) {
     }
     printf("MCU: decoded %zu value(s).\n", val_count);
 
-    /* "EXECUTE" positionally: apply the +0.4f calibration drift to the float
-     * value (battery-backed "muscle" proves it is really processing). */
+    /* --- Pass 1: calibration (classic +0.4 f32 drift). --- */
     for (size_t i = 0; i < val_count; i++) {
         if (values[i].len == sizeof(float)) {
             float f = read_float(values[i].data);
             f += 0.4f;
             memcpy((void *)values[i].data, &f, sizeof(float));
-            printf("MCU:   position %zu: float %.3f -> %.3f (offset +0.4)\n", i, f - 0.4f, f);
+            printf("MCU:   position %zu: float %.3f -> %.3f (offset +0.4)\n",
+                   i, f - 0.4f, f);
         }
     }
+
+    /* --- Pass 2: EWMA leaf dispatch. --- */
+    run_ewma_dispatch(tree, values, val_count);
 
     /* Encode the reply value blob with ts_values_encode. */
     if (ts_values_encode(values, val_count, &reply_vals, &reply_vals_len) != TS_OK) {
@@ -189,7 +315,8 @@ int main(int argc, char **argv) {
         goto done;
     }
 
-    printf("MCU: wrote reply_packet.bin (%zu bytes, mode=%s) and reply_values.bin (%zu bytes).\n",
+    printf("MCU: wrote reply_packet.bin (%zu bytes, mode=%s) and "
+           "reply_values.bin (%zu bytes).\n",
            reply_wire_len,
            incoming_mode == WIRE_FORMAT_PACKED ? "packed" : "ascii",
            reply_vals_len);

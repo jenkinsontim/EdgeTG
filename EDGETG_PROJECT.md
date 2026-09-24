@@ -81,7 +81,7 @@ gcc -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 \
 | `test_priority23` | 861 | Roles, Boltzmann, enum, metrics + fuzz |
 | `test_integration` | (cross-module) | Evolve → values → norm → schema → roles → intern → firmwares |
 | `test_ewma_leaf` | 68 | EWMA leaf init, convergence, reversal, multi-leaf, role-map, clamping |
-| **Total** | **≈ 6069+** | All under ASan/UBSan/LeakSanitizer, `-Werror` |
+| **Total** | **≈ 6137+** | All under ASan/UBSan/LeakSanitizer, `-Werror` |
 
 ## 8. Repository layout
 

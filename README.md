@@ -1,4 +1,4 @@
-# EdgeTG (v1.4)
+# EdgeTG (v1.5)
 
 Canonical ordered trees as genomes for edge intelligence. **Exactly three glyphs:** `_` `/` `\`
 
