@@ -4,6 +4,7 @@
 #include "ts_core.h"
 #include "ts_layers.h"
 #include "ts_roles.h"
+#include "ts_norm.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -117,11 +118,48 @@ static void test_encode_forest_null(void) {
     free(s);
 }
 
+/* ts_forest_normalize_paired: each value must stay bound to its node when
+ * the normalizer reorders children inside a tree (not just whole trees). */
+static void test_forest_normalize_paired_binding(void) {
+    printf("4. ts_forest_normalize_paired keeps values bound to their nodes\n");
+    /* Tree 0: root R -> [A -> [a], B]; normalizing sorts leaf B before A.
+     * Tree 1: single node T, which sorts before tree 0 ("_" < "_/...").  */
+    TSNode *t0 = NULL, *t1 = NULL;
+    if (ts_parse("_/_/_\\_\\", 8, &t0) != TS_OK || ts_parse("_", 8, &t1) != TS_OK) {
+        CHECK(0, "fixture parse"); return;
+    }
+    TSNode forest[2] = { *t0, *t1 };
+    free(t0); free(t1);
+    const char *tags[5] = { "R", "A", "a", "B", "T" };   /* preorder, tree 0 then 1 */
+    TSValue vals[5];
+    for (int i = 0; i < 5; i++) { vals[i].data = (const uint8_t *)tags[i]; vals[i].len = 1; }
+
+    TSNode *out = NULL; size_t out_n = 0; TSValue *ov = NULL;
+    TSError e = ts_forest_normalize_paired(forest, 2, vals, 5, &out, &out_n, &ov);
+    CHECK(e == TS_OK && out_n == 2, "normalize succeeds");
+    if (e == TS_OK) {
+        char *s0 = NULL, *s1 = NULL;
+        ts_encode(&out[0], &s0, NULL); ts_encode(&out[1], &s1, NULL);
+        CHECK(s0 && strcmp(s0, "_") == 0, "tree order: single node first");
+        CHECK(s1 && strcmp(s1, "_/__/_\\\\") == 0, "tree 0 children sorted");
+        const char *want = "TRBAa";   /* T | R, B, A, a */
+        for (int i = 0; i < 5; i++) {
+            char msg[64];
+            snprintf(msg, sizeof msg, "output value %d is '%c'", i, want[i]);
+            CHECK(ov[i].len == 1 && ov[i].data[0] == (uint8_t)want[i], msg);
+        }
+        free(s0); free(s1);
+        ts_free_forest(out, out_n); free(ov);
+    }
+    ts_free_tree(&forest[0]); ts_free_tree(&forest[1]);
+}
+
 int main(void) {
     printf("EdgeTG — REGRESSION TESTS\n\n");
     test_values_decode_untrusted();
     test_roles_decode_untrusted();
     test_encode_forest_null();
+    test_forest_normalize_paired_binding();
     printf("\nRESULT: %d/%d regression assertions passed.\n", g_pass, g_pass + g_fail);
     return g_fail ? 1 : 0;
 }
