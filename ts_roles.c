@@ -70,23 +70,30 @@ TSError ts_roles_encode(const TSRoleMap *map, uint8_t **out, size_t *out_len) {
     return TS_OK;
 }
 
+static void free_decoded_roles(TSRole *roles, uint32_t n) {
+    for (uint32_t i = 0; i < n; i++) free((void *)roles[i].metadata.data);
+    free(roles);
+}
+
 TSError ts_roles_decode(const uint8_t *buf, size_t len, TSRoleMap *out) {
     if (!buf || !out || len < 8) return TS_ERR_INVALID_ARG;
     memset(out, 0, sizeof(*out));
     uint32_t count = get_u32(buf);
     uint32_t max_tag = get_u32(buf + 4);
     size_t pos = 8;
+    /* Untrusted header: every role needs at least 12 bytes. */
+    if (count > (len - 8) / 12) return TS_ERR_INVALID_ARG;
     TSRole *roles = count ? (TSRole *)calloc(count, sizeof(TSRole)) : NULL;
     if (count && !roles) return TS_ERR_OOM;
     for (uint32_t i = 0; i < count; i++) {
-        if (len - pos < 12) { free(roles); return TS_ERR_INVALID_ARG; }
+        if (len - pos < 12) { free_decoded_roles(roles, i); return TS_ERR_INVALID_ARG; }
         roles[i].preorder_index = get_u32(buf + pos); pos += 4;
         roles[i].role_tag = get_u32(buf + pos); pos += 4;
         uint32_t mlen = get_u32(buf + pos); pos += 4;
-        if (mlen > len - pos) { free(roles); return TS_ERR_INVALID_ARG; }
+        if (mlen > len - pos) { free_decoded_roles(roles, i); return TS_ERR_INVALID_ARG; }
         if (mlen) {
             uint8_t *d = (uint8_t *)malloc(mlen);
-            if (!d) { free(roles); return TS_ERR_OOM; }
+            if (!d) { free_decoded_roles(roles, i); return TS_ERR_OOM; }
             memcpy(d, buf + pos, mlen);
             roles[i].metadata.data = d;
             roles[i].metadata.len = mlen;

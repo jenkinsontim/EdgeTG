@@ -3,6 +3,7 @@
  * under ASan+LSan) on the code before its fix. */
 #include "ts_core.h"
 #include "ts_layers.h"
+#include "ts_roles.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,9 +62,53 @@ static void test_values_decode_untrusted(void) {
     if (v) ts_values_free(v, n);
 }
 
+/* ts_roles_decode: same untrusted-count / leak-on-truncation pattern. */
+static void test_roles_decode_untrusted(void) {
+    printf("2. ts_roles_decode rejects truncated / hostile blobs\n");
+    TSRoleMap m;
+
+    /* count=2, max_tag=5; role 0 has 3 bytes metadata; role 1 truncated. */
+    uint8_t trunc[8 + 12 + 3 + 4];
+    memset(trunc, 0, sizeof trunc);
+    put_u32le(trunc, 2); put_u32le(trunc + 4, 5);
+    put_u32le(trunc + 8, 0); put_u32le(trunc + 12, 1); put_u32le(trunc + 16, 3);
+    memcpy(trunc + 20, "xyz", 3);
+    CHECK(ts_roles_decode(trunc, sizeof trunc, &m) == TS_ERR_INVALID_ARG,
+          "truncated second role rejected");
+
+    /* role 1 metadata length overruns the buffer. */
+    uint8_t overrun[8 + 12 + 3 + 12 + 1];
+    memset(overrun, 0, sizeof overrun);
+    put_u32le(overrun, 2); put_u32le(overrun + 4, 5);
+    put_u32le(overrun + 16, 3); memcpy(overrun + 20, "xyz", 3);
+    put_u32le(overrun + 31, 50);
+    CHECK(ts_roles_decode(overrun, sizeof overrun, &m) == TS_ERR_INVALID_ARG,
+          "overrunning metadata length rejected");
+
+    /* 8-byte packet claiming 0xFFFFFFFF roles (~128 GiB calloc). */
+    uint8_t hostile[8];
+    put_u32le(hostile, 0xFFFFFFFFu); put_u32le(hostile + 4, 1);
+    CHECK(ts_roles_decode(hostile, sizeof hostile, &m) == TS_ERR_INVALID_ARG,
+          "hostile role count rejected");
+
+    /* A valid one-role map still decodes. */
+    uint8_t ok[8 + 12 + 2];
+    put_u32le(ok, 1); put_u32le(ok + 4, 7);
+    put_u32le(ok + 8, 0); put_u32le(ok + 12, 7); put_u32le(ok + 16, 2);
+    memcpy(ok + 20, "md", 2);
+    CHECK(ts_roles_decode(ok, sizeof ok, &m) == TS_OK && m.count == 1 &&
+          m.max_tag == 7 && m.roles[0].role_tag == 7 &&
+          m.roles[0].metadata.len == 2, "valid role map decodes");
+    /* Contract: ts_roles_free does not own metadata; decode-owned buffers
+     * are released by the caller (as in test_priority23 / test_ewma_leaf). */
+    for (size_t i = 0; i < m.count; i++) free((void *)m.roles[i].metadata.data);
+    ts_roles_free(&m);
+}
+
 int main(void) {
     printf("EdgeTG — REGRESSION TESTS\n\n");
     test_values_decode_untrusted();
+    test_roles_decode_untrusted();
     printf("\nRESULT: %d/%d regression assertions passed.\n", g_pass, g_pass + g_fail);
     return g_fail ? 1 : 0;
 }
