@@ -79,6 +79,12 @@ static char *decode_wire_payload(const uint8_t *buf, size_t len,
 
     if (fmt == WIRE_FORMAT_ASCII) {
         size_t str_len = len - 1;
+        /* The topology is handled as a C string below; an embedded NUL
+         * would silently truncate it to a different (possibly valid) tree. */
+        if (memchr(buf + 1, '\0', str_len)) {
+            fprintf(stderr, "MCU: REJECTED: NUL byte in ASCII topology.\n");
+            return NULL;
+        }
         out = malloc(str_len + 1);
         if (!out) return NULL;
         memcpy(out, buf + 1, str_len);

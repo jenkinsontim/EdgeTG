@@ -6,7 +6,8 @@
 #include <stdint.h>
 
 /* Number of ordered rooted trees with exactly n nodes (plane trees / Catalan).
- * C_{n-1} where C_k is the k-th Catalan number. Implemented via DP. */
+ * C_{n-1} where C_k is the k-th Catalan number. Implemented via DP.
+ * Returns 0 for n == 0 and when the count does not fit in uint64_t (n >= 38). */
 uint64_t ts_count_trees(size_t n);
 
 /* Call callback for every tree with exactly n nodes (canonical generation order).

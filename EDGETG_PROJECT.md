@@ -44,6 +44,7 @@ produced by the canonical encoder; parse → encode is an identity.
 | **Boltzmann** | `ts_boltzmann.h/.c` | Parameterized random tree generation |
 | **Enum** | `ts_enum.h/.c` | Catalan counts + plane-tree unranking / enumeration |
 | **Metric** | `ts_metric.h/.c` | Tree edit distance + canonical-string Levenshtein |
+| **Packed** | `ts_packed.h/.c` | 2-bit packed wire format (4 glyphs per byte) |
 | **Leaf** | `ewma_leaf.h/.c` | EWMA prototype classifier for adaptive leaf nodes |
 | **Device** | `device.h/.c` | Firmwares A/B/C + dedup persistence store |
 
@@ -79,9 +80,16 @@ gcc -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 \
 | `test_extended` | 2343 | RNG, mutations, 500-run fuzz |
 | `test_priority1` | 1334 | Intern, forest-norm, depth-norm + fuzz |
 | `test_priority23` | 861 | Roles, Boltzmann, enum, metrics + fuzz |
-| `test_integration` | (cross-module) | Evolve → values → norm → schema → roles → intern → firmwares |
+| `test_integration` | 63 | Evolve → values → norm → schema → roles → intern → firmwares |
+| `test_packed` | 65 | 2-bit pack/unpack round trips, padding edge cases, random trees |
 | `test_ewma_leaf` | 68 | EWMA leaf init, convergence, reversal, multi-leaf, role-map, clamping |
-| **Total** | **≈ 6137+** | All under ASan/UBSan/LeakSanitizer, `-Werror` |
+| `test_regressions` | 31 | Hostile/truncated value & role blobs, NULL forest encode, paired forest normalize binding, Catalan overflow, packed padding |
+| **Total** | **6296** | All under ASan/UBSan/LeakSanitizer, `-Werror` |
+
+`make test` also runs `device_bench`, `test_dual_wire_format`, `ewma_boundary` and
+`test_evolution_experiment` (pass/fail, no assertion counts), `smoke_mcu.sh`
+(10 wire-level accept/reject checks against `mcu_executor`) and the
+`smoke_ewma_executor.py` → `mcu_executor` end-to-end smoke run.
 
 ## 8. Repository layout
 
@@ -95,6 +103,7 @@ ts_roles.h / ts_roles.c
 ts_boltzmann.h / ts_boltzmann.c
 ts_enum.h / ts_enum.c
 ts_metric.h / ts_metric.c
+ts_packed.h / ts_packed.c
 device.h / device.c
 device_bench.c
 test_layers.c
@@ -102,12 +111,20 @@ test_extended.c
 test_priority1.c
 test_priority23.c
 test_integration.c
+test_packed.c
+test_dual_wire_format.c
+test_evolution_experiment.c
+test_regressions.c
 ewma_leaf.h / ewma_leaf.c
 ewma_boundary_test.c
 synthetic_leaf_battle.py
 test_ewma_leaf.c
+mcu_executor.c
+smoke_mcu.sh
+smoke_ewma_executor.py
+gateway.lua / gateway.py / gateway.zig / gateway.c3
 Makefile
-TOPOLOGY_GENOME_PROJECT.md
+EDGETG_PROJECT.md
 README.md
 ```
 

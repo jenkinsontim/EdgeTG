@@ -36,6 +36,9 @@ int ts_unpack(const uint8_t *packed, size_t count, char *out) {
         if (code == 3) return 0; /* unused code point -- corrupted data */
         out[i] = code_to_glyph(code);
     }
+    /* Padding bits after the last symbol must be zero (ts_pack writes
+     * zeros), so every topology has exactly one packed encoding. */
+    if ((count % 4) && (packed[count / 4] >> ((count % 4) * 2)) != 0) return 0;
     out[count] = '\0';
     return 1;
 }

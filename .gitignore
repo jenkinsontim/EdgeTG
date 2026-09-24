@@ -12,3 +12,23 @@ wire_reply_packet.bin
 wire_reply_values.bin
 reply_packet.bin
 reply_values.bin
+
+# Build artifacts
+*.o
+*.d
+*.pdb
+
+# Test binaries (Linux/macOS have no extension)
+test_layers
+test_extended
+test_packed
+test_dual_wire_format
+test_priority23
+test_ewma_leaf
+test_evolution_experiment
+ewma_boundary
+mcu_executor
+device_bench
+test_priority1
+test_integration
+test_regressions

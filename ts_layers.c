@@ -99,11 +99,13 @@ TSError ts_values_encode(const TSValue *values, size_t count, uint8_t **out, siz
 TSError ts_values_decode(const uint8_t *buf,size_t len,TSValue **out,size_t*out_count){
     if (!buf || !out || len < 4) return TS_ERR_INVALID_ARG;
     uint32_t count=get_u32(buf); size_t pos=4;
+    /* Untrusted header: every value needs at least its 4-byte length field. */
+    if (count > (len - 4) / 4) return TS_ERR_INVALID_ARG;
     TSValue*v=(TSValue*)calloc(count?count:1,sizeof(*v));if(!v)return TS_ERR_OOM;
     for(uint32_t i=0;i<count;i++){
-        if(len-pos<4){free(v);return TS_ERR_INVALID_ARG;}
+        if(len-pos<4){ts_values_free(v,i);return TS_ERR_INVALID_ARG;}
         uint32_t n=get_u32(buf+pos);pos+=4;
-        if(n>len-pos){free(v);return TS_ERR_INVALID_ARG;}
+        if(n>len-pos){ts_values_free(v,i);return TS_ERR_INVALID_ARG;}
         uint8_t*d=(uint8_t*)malloc(n?n:1);
         if(!d){for(uint32_t j=0;j<i;j++)free((void*)v[j].data);free(v);return TS_ERR_OOM;}
         if (n > 0) {

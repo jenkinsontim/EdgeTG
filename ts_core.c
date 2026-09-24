@@ -160,7 +160,7 @@ TSError ts_encode(const TSNode *tree, char **out, size_t *out_len) {
     return TS_OK;
 }
 TSError ts_encode_forest(const TSNode *forest, size_t count, char **out, size_t *out_len) {
-    if (!out) return TS_ERR_INVALID_ARG;
+    if (!out || (count && !forest)) return TS_ERR_INVALID_ARG;
     size_t cap = 64, pos = 0;
     char *buf = malloc(cap);
     if (!buf) return TS_ERR_OOM;

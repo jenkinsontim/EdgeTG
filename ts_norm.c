@@ -158,14 +158,12 @@ TSError ts_forest_normalize_paired(const TSNode *forest, size_t count,
     size_t off = 0;
     for (size_t i = 0; i < count; i++) {
         items[i].n = ts_count_nodes(&forest[i]);
-        TSError e = full_norm(&forest[i], &items[i].tree);
+        /* Normalize each tree together with its own value block, so values
+         * follow the child permutation inside the tree as well as the
+         * permutation of whole trees. */
+        TSError e = ts_unordered_normalize_paired(&forest[i], values + off, items[i].n,
+                                                  &items[i].tree, &items[i].vals);
         if (e != TS_OK) goto fail;
-        /* For simplicity we keep original value order within each tree;
-         * a full paired recursive normalize would re-permute inside, but
-         * forest-level only reorders whole trees. */
-        items[i].vals = (TSValue *)malloc(items[i].n * sizeof(TSValue));
-        if (!items[i].vals) { e = TS_ERR_OOM; goto fail; }
-        memcpy(items[i].vals, values + off, items[i].n * sizeof(TSValue));
         off += items[i].n;
         e = ts_encode(items[i].tree, &items[i].key, NULL);
         if (e != TS_OK) goto fail;

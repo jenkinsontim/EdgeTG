@@ -14,7 +14,8 @@ size_t ts_pack(const char *glyphs, size_t count, uint8_t *out);
 /* Unpacks exactly `count` symbols from `packed` back into `out` (which must
  * have room for count+1 bytes, for a NUL terminator). The caller must know
  * `count` -- 2-bit packing has no self-terminating marker, unlike the
- * ASCII string form. Returns 1 on success, 0 on invalid packed data. */
+ * ASCII string form. Returns 1 on success, 0 on invalid packed data (code 3,
+ * or non-zero padding bits after the last symbol). */
 int ts_unpack(const uint8_t *packed, size_t count, char *out);
 
 #endif
